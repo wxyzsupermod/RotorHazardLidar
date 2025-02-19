@@ -63,19 +63,27 @@ class LidarValidator:
         from flask import Blueprint, jsonify, render_template
         import os
 
-        # Create blueprint with template folder
+        # Get the directory where this plugin file is located
+        plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Create blueprint with absolute paths
         bp = Blueprint(
             'lidar_viz',
             __name__,
-            template_folder='templates',
-            static_folder='static'
+            template_folder=os.path.join(plugin_dir, 'templates'),
+            static_folder=os.path.join(plugin_dir, 'static'),
+            static_url_path='/static/RotorHazardLidar'  # Match your plugin folder name
         )
         
         @bp.route('/lidar')
         def lidar_view():
             """Serve the LIDAR visualization page."""
-            self.rhapi.ui.message_notify('Lidar view endpoint accessed')
-            return render_template('lidar_viz.html')
+            try:
+                self.rhapi.ui.message_notify('Lidar view endpoint accessed')
+                return render_template('lidar_viz.html')
+            except Exception as e:
+                self.rhapi.ui.message_alert(f'Error loading template: {str(e)}')
+                return f'Error: {str(e)}'
             
         @bp.route('/lidar/data')
         def lidar_data():
