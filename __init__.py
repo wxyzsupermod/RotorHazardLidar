@@ -191,12 +191,14 @@ class LidarValidator:
             self.rhapi.ui.message_alert(f'LIDAR scanning error: {str(e)}')
             self.stop_lidar()
             
+
+
     def open_visualization(self, args=None):
         """Open the LIDAR visualization."""
         try:
             self.rhapi.ui.message_notify('Opening LIDAR visualization...')
-            # Simply return the relative URL - the UI system will handle it
-            return {'url': '/lidar'}
+            # Open in new window using window.open
+            return {'url': '/lidar', 'target': '_blank'} 
         except Exception as e:
             self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
     
