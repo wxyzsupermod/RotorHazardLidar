@@ -17,8 +17,8 @@ const LidarVisualization = () => {
         if (data.error) {
           setError(data.error);
         } else {
-          setError(null);
-        }
+            setError(null);
+          }
         
         setScanData(data.scan || []);
         setThreshold(data.threshold / 10); // Convert mm to cm

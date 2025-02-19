@@ -191,9 +191,17 @@ class LidarValidator:
             
     def open_visualization(self, args=None):
         """Open the LIDAR visualization in a new window."""
-        from flask import redirect
-        self.rhapi.ui.message_notify('Opening LIDAR visualization...')
-        return redirect('/lidar')
+        try:
+            import webbrowser
+            # Get the server URL from rhapi
+            server_url = self.rhapi.ui.get_server_url()
+            # Construct the full URL
+            viz_url = f"{server_url}/lidar"
+            # Open in new browser window
+            webbrowser.open(viz_url, new=2)
+            self.rhapi.ui.message_notify('Opening LIDAR visualization...')
+        except Exception as e:
+            self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
     
     def on_lap_recorded(self, args):
         """Handler for lap recording events."""
