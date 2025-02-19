@@ -6,13 +6,62 @@ from eventmanager import Evt
 from RHUI import UIField, UIFieldType
 from Database import ProgramMethod
 import gevent
+import asyncio
+import websockets
+import threading
+from gevent import monkey; monkey.patch_all()
 
 class LidarValidator:
     def __init__(self, rhapi):
         self.rhapi = rhapi
+        self.lidar = None
+        self.detection_threshold = None
+        self.last_detection_time = None
+        self.detection_window = 0.5  # Time window in seconds to match detections
+        self.is_running = False
+        self.scanning_greenlet = None
         
-        # Register the visualization page
-        from flask import Blueprint
+        # Register port option
+        port_field = UIField('lidar_port', 'LIDAR Port', UIFieldType.TEXT, 
+                   value='/dev/ttyUSB0',
+                   desc='Serial port for RPLidar C1')
+        baud_field = UIField('lidar_baudrate', 'Baud Rate', UIFieldType.BASIC_INT,
+                   value='460800',
+                   desc='Serial baud rate for RPLidar C1')
+        timeout_field = UIField('lidar_timeout', 'Timeout (seconds)', UIFieldType.BASIC_INT,
+                   value='10',
+                   desc='Connection timeout in seconds')
+        distance_field = UIField('detection_distance', 'Detection Distance (mm)', UIFieldType.BASIC_INT,
+                   value='1000',
+                   desc='Distance threshold for detection in millimeters')
+
+
+        # Register all options
+        self.rhapi.fields.register_option(port_field, 'lidar_control')
+        self.rhapi.fields.register_option(baud_field, 'lidar_control')
+        self.rhapi.fields.register_option(timeout_field, 'lidar_control')
+        self.rhapi.fields.register_option(distance_field, 'lidar_control')
+
+        
+        # Create UI panel
+        self.rhapi.ui.register_panel('lidar_control', 'LIDAR Control', 'settings')
+        
+        # Add control buttons
+        self.rhapi.ui.register_quickbutton('lidar_control', 'start_lidar', 
+                                         'Start LIDAR', self.start_lidar)
+        self.rhapi.ui.register_quickbutton('lidar_control', 'stop_lidar',
+                                         'Stop LIDAR', self.stop_lidar)
+        self.rhapi.ui.register_quickbutton('lidar_control', 'calibrate_lidar',
+                                         'Calibrate', self.calibrate)
+        self.rhapi.ui.register_quickbutton('lidar_control', 'view_lidar',
+                                         'View LIDAR', self.open_visualization)
+        
+        # Register event handlers
+        self.rhapi.events.on(Evt.RACE_LAP_RECORDED, self.on_lap_recorded)
+        self.rhapi.events.on(Evt.RACE_STOP, self.on_race_stop)
+        
+        # Register the visualization page and API endpoint
+        from flask import Blueprint, jsonify
         
         bp = Blueprint(
             'lidar_viz',
@@ -29,61 +78,68 @@ class LidarValidator:
             </head>
             <body>
                 <div id="root"></div>
-                <script>
-                    window.socket = new WebSocket(`ws://${window.location.host}/socket`);
-                </script>
+                <script src="/static/dist/lidar-viz.js"></script>
             </body>
             </html>
             '''
             
+        @bp.route('/lidar/data')
+        def lidar_data():
+            if not self.is_running:
+                return jsonify({
+                    'error': 'LIDAR not running',
+                    'scan': [],
+                    'threshold': self.detection_threshold or 1000
+                })
+            
+            # Return the last scan data if available
+            if hasattr(self, 'last_scan_data'):
+                return jsonify({
+                    'scan': self.last_scan_data,
+                    'threshold': self.detection_threshold
+                })
+            else:
+                return jsonify({
+                    'scan': [],
+                    'threshold': self.detection_threshold
+                })
+            
         # Register the blueprint
         self.rhapi.ui.blueprint_add(bp)
-        self.lidar = None
-        self.detection_threshold = None
-        self.last_detection_time = None
-        self.detection_window = 0.5  # Time window in seconds to match detections
-        self.is_running = False
-        self.scanning_greenlet = None
         
-        # Register our options and add them to the panel
-        port_field = UIField('lidar_port', 'LIDAR Port', UIFieldType.TEXT, 
-                   value='/dev/ttyUSB0',
-                   desc='Serial port for RPLidar C1')
-        baud_field = UIField('lidar_baudrate', 'Baud Rate', UIFieldType.BASIC_INT,
-                   value='460800',
-                   desc='Serial baud rate for RPLidar C1')
-        timeout_field = UIField('lidar_timeout', 'Timeout (seconds)', UIFieldType.BASIC_INT,
-                   value='10',
-                   desc='Connection timeout in seconds')
-        distance_field = UIField('detection_distance', 'Detection Distance (mm)', UIFieldType.BASIC_INT,
-                   value='1000',
-                   desc='Distance threshold for detection in millimeters')
+        # Start WebSocket server
+        self.start_websocket_server()
+        
+    def start_websocket_server(self):
+        """Start WebSocket server in a separate thread."""
+        async def handler(websocket, path):
+            self.connected_clients.add(websocket)
+            try:
+                await websocket.wait_closed()
+            finally:
+                self.connected_clients.remove(websocket)
 
-        # Register all options
-        self.rhapi.fields.register_option(port_field, 'lidar_control')
-        self.rhapi.fields.register_option(baud_field, 'lidar_control')
-        self.rhapi.fields.register_option(timeout_field, 'lidar_control')
-        self.rhapi.fields.register_option(distance_field, 'lidar_control')
+        async def run_server():
+            port = int(self.rhapi.db.option('websocket_port'))
+            self.websocket_server = await websockets.serve(handler, '0.0.0.0', port)
+            await self.websocket_server.wait_closed()
+
+        def run_asyncio_loop():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(run_server())
+            loop.run_forever()
+
+        thread = threading.Thread(target=run_asyncio_loop, daemon=True)
+        thread.start()
         
-        # Create UI panel
-        self.rhapi.ui.register_panel('lidar_control', 'LIDAR Control', 'settings')
-        
-        # Add control buttons
-        self.rhapi.ui.register_quickbutton('lidar_control', 'start_lidar', 
-                                         'Start LIDAR', self.start_lidar)
-        self.rhapi.ui.register_quickbutton('lidar_control', 'stop_lidar',
-                                         'Stop LIDAR', self.stop_lidar)
-        self.rhapi.ui.register_quickbutton('lidar_control', 'calibrate_lidar',
-                                         'Calibrate', self.calibrate)
-        
-        # Add visualization button
-        self.rhapi.ui.register_quickbutton('lidar_control', 'view_lidar',
-                                         'View LIDAR', self.open_visualization)
-        
-        # Register event handlers
-        self.rhapi.events.on(Evt.RACE_LAP_RECORDED, self.on_lap_recorded)
-        self.rhapi.events.on(Evt.RACE_STOP, self.on_race_stop)
-        
+    async def broadcast_scan(self, data):
+        """Broadcast scan data to all connected clients."""
+        if not self.connected_clients:
+            return
+        message = json.dumps(data)
+        websockets.broadcast(self.connected_clients, message)
+            
     def start_lidar(self, args=None):
         """Start the LIDAR scanning process."""
         if self.is_running:
@@ -129,20 +185,49 @@ class LidarValidator:
                 if not self.is_running:
                     break
                     
-                # Check each measurement in the scan
+                # Convert scan data to simplified format for visualization
+                scan_data = []
                 for _, angle, distance in scan:
-                    # We only care about objects directly in front (angle near 0 or 360)
-                    if (angle < 10 or angle > 350) and distance < self.detection_threshold:
+                    # Convert to cartesian coordinates for easier visualization
+                    # Scale distance down to fit visualization (divide by 10 to convert mm to cm)
+                    distance = distance / 10
+                    x = distance * math.cos(math.radians(angle))
+                    y = distance * math.sin(math.radians(angle))
+                    scan_data.append({
+                        'angle': angle,
+                        'distance': distance,
+                        'x': x,
+                        'y': y
+                    })
+                    
+                    # Check for detections in the gate area
+                    if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
                         self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
                             gevent.time.monotonic()
                         )
-                        
+                
+                # Store the latest scan data
+                self.last_scan_data = scan_data
+                
+                # Broadcast scan data to visualization clients
+                asyncio.run(self.broadcast_scan({
+                    'type': 'lidar_scan',
+                    'scan': scan_data,
+                    'threshold': self.detection_threshold / 10  # Convert to cm
+                }))
+                
                 gevent.idle()  # Allow other operations to proceed
                 
         except Exception as e:
             self.rhapi.ui.message_alert(f'LIDAR scanning error: {str(e)}')
             self.stop_lidar()
             
+    def open_visualization(self, args=None):
+        """Open the LIDAR visualization in a new window."""
+        from flask import redirect
+        self.rhapi.ui.message_notify('Opening LIDAR visualization...')
+        return redirect('/lidar')
+    
     def on_lap_recorded(self, args):
         """Handler for lap recording events."""
         if not self.is_running or not self.last_detection_time:
@@ -161,7 +246,6 @@ class LidarValidator:
             
             # Mark the lap as deleted
             if 'lap_id' in args:
-                # Find the lap in the database and mark it as deleted
                 race_id = self.rhapi.race.race_id
                 if race_id:
                     laps = self.rhapi.db.laps_by_race(race_id)
@@ -175,14 +259,6 @@ class LidarValidator:
         # Clear the last detection time when race stops
         self.last_detection_time = None
         
-    def open_visualization(self, args=None):
-        """Open the LIDAR visualization in a new window."""
-        self.rhapi.ui.message_notify('Opening LIDAR visualization...')
-        # Send javascript command to open new window
-        self.rhapi.ui.socket_broadcast('open_lidar_viz', {
-            'url': '/lidar'
-        })
-
     def calibrate(self, args=None):
         """Run a calibration sequence."""
         if not self.is_running:
