@@ -52,8 +52,15 @@ class LidarValidator:
                                          'Stop LIDAR', self.stop_lidar)
         self.rhapi.ui.register_quickbutton('lidar_control', 'calibrate_lidar',
                                          'Calibrate', self.calibrate)
-        self.rhapi.ui.register_quickbutton('lidar_control', 'view_lidar',
-                                         'View LIDAR', self.open_visualization)
+        self.rhapi.ui.register_quickbutton(
+            'lidar_control',  # panel name
+            'view_lidar',     # button id
+            'View LIDAR',     # button label
+            {                 # button configuration
+                'handler': self.open_visualization,
+                'args': None
+            }
+        )
         
         # Register event handlers
         self.rhapi.events.on(Evt.RACE_LAP_RECORDED, self.on_lap_recorded)
@@ -196,11 +203,24 @@ class LidarValidator:
     def open_visualization(self, args=None):
         """Open the LIDAR visualization."""
         try:
-            self.rhapi.ui.message_notify('Opening LIDAR visualization...')
-            # Open in new window using window.open
-            return {'url': '/lidar', 'target': '_blank'} 
+            self.rhapi.ui.message_notify('Attempting to open LIDAR visualization...')
+            
+            # Method 1: Try direct URL return
+            window_url = '/lidar'
+            self.rhapi.ui.message_notify(f'Opening URL: {window_url}')
+            
+            # The UI system expects a dictionary with a URL key
+            return {
+                'url': window_url,
+                'target': '_blank',
+                'features': 'width=800,height=600'
+            }
+            
         except Exception as e:
-            self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
+            import traceback
+            error_msg = f'Failed to open visualization: {str(e)}\n{traceback.format_exc()}'
+            self.rhapi.ui.message_alert(error_msg)
+            return False
     
     def on_lap_recorded(self, args):
         """Handler for lap recording events."""
