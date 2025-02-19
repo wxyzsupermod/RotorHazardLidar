@@ -52,15 +52,8 @@ class LidarValidator:
                                          'Stop LIDAR', self.stop_lidar)
         self.rhapi.ui.register_quickbutton('lidar_control', 'calibrate_lidar',
                                          'Calibrate', self.calibrate)
-        self.rhapi.ui.register_quickbutton(
-            'lidar_control',  # panel name
-            'view_lidar',     # button id
-            'View LIDAR',     # button label
-            {                 # button configuration
-                'handler': self.open_visualization,
-                'args': None
-            }
-        )
+        self.rhapi.ui.register_quickbutton('lidar_control', 'view_lidar',
+                                         'View LIDAR', self.open_visualization)
         
         # Register event handlers
         self.rhapi.events.on(Evt.RACE_LAP_RECORDED, self.on_lap_recorded)
@@ -203,17 +196,12 @@ class LidarValidator:
     def open_visualization(self, args=None):
         """Open the LIDAR visualization."""
         try:
-            self.rhapi.ui.message_notify('Attempting to open LIDAR visualization...')
+            self.rhapi.ui.message_notify('Opening LIDAR visualization...')
             
-            # Method 1: Try direct URL return
-            window_url = '/lidar'
-            self.rhapi.ui.message_notify(f'Opening URL: {window_url}')
-            
-            # The UI system expects a dictionary with a URL key
+            # Return a simple object that tells the frontend to open a new window
             return {
-                'url': window_url,
-                'target': '_blank',
-                'features': 'width=800,height=600'
+                'callback': 'window.open',
+                'args': ['/lidar', '_blank', 'width=800,height=600']
             }
             
         except Exception as e:
