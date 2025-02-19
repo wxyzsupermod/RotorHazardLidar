@@ -60,37 +60,26 @@ class LidarValidator:
         self.rhapi.events.on(Evt.RACE_STOP, self.on_race_stop)
         
         # Register the visualization page and API endpoint
-        from flask import Blueprint, jsonify
-        
+        from flask import Blueprint, jsonify, render_template
+        import os
+
+        # Create blueprint with template folder
         bp = Blueprint(
             'lidar_viz',
             __name__,
+            template_folder='templates',
             static_folder='static'
         )
         
         @bp.route('/lidar')
         def lidar_view():
             """Serve the LIDAR visualization page."""
-            self.rhapi.ui.message_notify('Lidar view endpoint accessed')  # Debug log
-            return '''
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>LIDAR Visualization</title>
-                <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
-                <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
-            </head>
-            <body>
-                <div id="root"></div>
-                <script src="static/lidar-viz.js"></script>
-            </body>
-            </html>
-            '''
+            self.rhapi.ui.message_notify('Lidar view endpoint accessed')
+            return render_template('lidar_viz.html')
             
         @bp.route('/lidar/data')
         def lidar_data():
             """Serve LIDAR scan data as JSON."""
-            self.rhapi.ui.message_notify('Lidar data endpoint accessed')  # Debug log
             if not self.is_running:
                 return jsonify({
                     'error': 'LIDAR not running',
