@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+import math
 from rplidar import RPLidar
 from eventmanager import Evt
 from RHUI import UIField, UIFieldType
@@ -9,6 +10,19 @@ import gevent
 class LidarValidator:
     def __init__(self, rhapi):
         self.rhapi = rhapi
+        
+        # Register the visualization page
+        from flask import Blueprint, render_template
+        
+        bp = Blueprint(
+            'lidar_viz',
+            __name__,
+            template_folder='templates'
+        )
+        
+        @bp.route('/lidar')
+        def lidar_view():
+            return render_template('lidar_viz.html')
         self.lidar = None
         self.detection_threshold = None
         self.last_detection_time = None
@@ -16,27 +30,25 @@ class LidarValidator:
         self.is_running = False
         self.scanning_greenlet = None
         
-        # Register our options
-        self.rhapi.fields.register_option(
-            UIField('lidar_port', 'LIDAR Port', UIFieldType.TEXT, 
+        # Register our options and add them to the panel
+        port_field = UIField('lidar_port', 'LIDAR Port', UIFieldType.TEXT, 
                    value='/dev/ttyUSB0',
                    desc='Serial port for RPLidar C1')
-        )
-        self.rhapi.fields.register_option(
-            UIField('lidar_baudRate', 'LIDAR BaudRate', UIFieldType.TEXT, 
+        baud_field = UIField('lidar_baudrate', 'Baud Rate', UIFieldType.BASIC_INT,
                    value='460800',
-                   desc='Serial port BaudRate default 460800 for RPLidar C1')
-        )
-        self.rhapi.fields.register_option(
-            UIField('lidar_connectionTimeout', 'LIDAR connection timeout', UIFieldType.TEXT, 
+                   desc='Serial baud rate for RPLidar C1')
+        timeout_field = UIField('lidar_timeout', 'Timeout (seconds)', UIFieldType.BASIC_INT,
                    value='10',
-                   desc='Serial port timeout default 10 seconds for RPLidar C1')
-        )
-        self.rhapi.fields.register_option(
-            UIField('detection_distance', 'Detection Distance (mm)', UIFieldType.BASIC_INT,
+                   desc='Connection timeout in seconds')
+        distance_field = UIField('detection_distance', 'Detection Distance (mm)', UIFieldType.BASIC_INT,
                    value='1000',
                    desc='Distance threshold for detection in millimeters')
-        )
+
+        # Register all options
+        self.rhapi.fields.register_option(port_field, 'lidar_control')
+        self.rhapi.fields.register_option(baud_field, 'lidar_control')
+        self.rhapi.fields.register_option(timeout_field, 'lidar_control')
+        self.rhapi.fields.register_option(distance_field, 'lidar_control')
         
         # Create UI panel
         self.rhapi.ui.register_panel('lidar_control', 'LIDAR Control', 'settings')
@@ -49,6 +61,10 @@ class LidarValidator:
         self.rhapi.ui.register_quickbutton('lidar_control', 'calibrate_lidar',
                                          'Calibrate', self.calibrate)
         
+        # Add visualization button
+        self.rhapi.ui.register_quickbutton('lidar_control', 'view_lidar',
+                                         'View LIDAR', self.open_visualization)
+        
         # Register event handlers
         self.rhapi.events.on(Evt.RACE_LAP_RECORDED, self.on_lap_recorded)
         self.rhapi.events.on(Evt.RACE_STOP, self.on_race_stop)
@@ -60,11 +76,11 @@ class LidarValidator:
             
         try:
             port = self.rhapi.db.option('lidar_port')
-            baudRate = self.rhapi.db.option('lidar_baudRate')
-            timeOut = self.rhapi.db.option('lidar_connectionTimeout')           
+            baudrate = int(self.rhapi.db.option('lidar_baudrate'))
+            timeout = int(self.rhapi.db.option('lidar_timeout'))
             self.detection_threshold = int(self.rhapi.db.option('detection_distance'))
             
-            self.lidar = RPLidar(port, baudRate, timeOut)
+            self.lidar = RPLidar(port, baudrate=baudrate, timeout=timeout)
             self.is_running = True
             
             # Start scanning in a separate greenlet
@@ -144,6 +160,14 @@ class LidarValidator:
         # Clear the last detection time when race stops
         self.last_detection_time = None
         
+    def open_visualization(self, args=None):
+        """Open the LIDAR visualization in a new window."""
+        self.rhapi.ui.message_notify('Opening LIDAR visualization...')
+        # Send javascript command to open new window
+        self.rhapi.ui.socket_broadcast('open_lidar_viz', {
+            'url': '/lidar'
+        })
+
     def calibrate(self, args=None):
         """Run a calibration sequence."""
         if not self.is_running:
