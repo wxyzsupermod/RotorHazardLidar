@@ -186,12 +186,11 @@ class LidarValidator:
             self.stop_lidar()
             
 
-
     def open_visualization(self, args=None):
         """Open the LIDAR visualization."""
         try:
-            # Return a direct URL that the frontend will navigate to
-            return {'url': '/lidar'}
+            # Return JavaScript that will be executed on the client side
+            return {'script': 'window.open("/lidar", "_blank")'}
         except Exception as e:
             self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
             return False
