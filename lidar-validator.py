@@ -23,6 +23,16 @@ class LidarValidator:
                    desc='Serial port for RPLidar C1')
         )
         self.rhapi.fields.register_option(
+            UIField('lidar_baudRate', 'LIDAR BaudRate', UIFieldType.TEXT, 
+                   value='460800',
+                   desc='Serial port BaudRate default 460800 for RPLidar C1')
+        )
+        self.rhapi.fields.register_option(
+            UIField('lidar_connectionTimeout', 'LIDAR connection timeout', UIFieldType.TEXT, 
+                   value='10',
+                   desc='Serial port timeout default 10 seconds for RPLidar C1')
+        )
+        self.rhapi.fields.register_option(
             UIField('detection_distance', 'Detection Distance (mm)', UIFieldType.BASIC_INT,
                    value='1000',
                    desc='Distance threshold for detection in millimeters')
@@ -50,9 +60,11 @@ class LidarValidator:
             
         try:
             port = self.rhapi.db.option('lidar_port')
+            baudRate = self.rhapi.db.option('lidar_baudRate')
+            timeOut = self.rhapi.db.option('lidar_connectionTimeout')           
             self.detection_threshold = int(self.rhapi.db.option('detection_distance'))
             
-            self.lidar = RPLidar(port)
+            self.lidar = RPLidar(port, baudRate, timeOut)
             self.is_running = True
             
             # Start scanning in a separate greenlet
