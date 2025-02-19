@@ -61,7 +61,7 @@ class LidarValidator:
         
         # Register the visualization page and API endpoint
         from flask import Blueprint, jsonify
-
+        
         bp = Blueprint(
             'lidar_viz',
             __name__,
@@ -71,6 +71,7 @@ class LidarValidator:
         @bp.route('/lidar')
         def lidar_view():
             """Serve the LIDAR visualization page."""
+            self.rhapi.ui.message_notify('Lidar view endpoint accessed')  # Debug log
             return '''
             <!DOCTYPE html>
             <html>
@@ -78,22 +79,18 @@ class LidarValidator:
                 <title>LIDAR Visualization</title>
                 <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
                 <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
-                <style>
-                    body { margin: 0; padding: 20px; }
-                    #root { width: 100%; height: 100vh; }
-                </style>
             </head>
             <body>
                 <div id="root"></div>
-                <script src="/static/lidar-viz.js"></script>
+                <script src="static/lidar-viz.js"></script>
             </body>
             </html>
             '''
-        
-        # Add the data endpoint
+            
         @bp.route('/lidar/data')
         def lidar_data():
             """Serve LIDAR scan data as JSON."""
+            self.rhapi.ui.message_notify('Lidar data endpoint accessed')  # Debug log
             if not self.is_running:
                 return jsonify({
                     'error': 'LIDAR not running',
@@ -197,17 +194,10 @@ class LidarValidator:
         """Open the LIDAR visualization."""
         try:
             self.rhapi.ui.message_notify('Opening LIDAR visualization...')
-            
-            # Return a simple object that tells the frontend to open a new window
-            return {
-                'callback': 'window.open',
-                'args': ['/lidar', '_blank', 'width=800,height=600']
-            }
-            
+            # Use a direct redirect response
+            return {'redirect': '/lidar'}
         except Exception as e:
-            import traceback
-            error_msg = f'Failed to open visualization: {str(e)}\n{traceback.format_exc()}'
-            self.rhapi.ui.message_alert(error_msg)
+            self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
             return False
     
     def on_lap_recorded(self, args):
