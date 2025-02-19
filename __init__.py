@@ -61,29 +61,39 @@ class LidarValidator:
         
         # Register the visualization page and API endpoint
         from flask import Blueprint, jsonify
-        
+
         bp = Blueprint(
             'lidar_viz',
-            __name__
+            __name__,
+            static_folder='static'
         )
         
         @bp.route('/lidar')
         def lidar_view():
+            """Serve the LIDAR visualization page."""
             return '''
             <!DOCTYPE html>
             <html>
             <head>
                 <title>LIDAR Visualization</title>
+                <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+                <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+                <style>
+                    body { margin: 0; padding: 20px; }
+                    #root { width: 100%; height: 100vh; }
+                </style>
             </head>
             <body>
                 <div id="root"></div>
-                <script src="/static/dist/lidar-viz.js"></script>
+                <script src="/static/lidar-viz.js"></script>
             </body>
             </html>
             '''
-            
+        
+        # Add the data endpoint
         @bp.route('/lidar/data')
         def lidar_data():
+            """Serve LIDAR scan data as JSON."""
             if not self.is_running:
                 return jsonify({
                     'error': 'LIDAR not running',
@@ -91,7 +101,6 @@ class LidarValidator:
                     'threshold': self.detection_threshold or 1000
                 })
             
-            # Return the last scan data if available
             if hasattr(self, 'last_scan_data'):
                 return jsonify({
                     'scan': self.last_scan_data,
@@ -102,9 +111,9 @@ class LidarValidator:
                     'scan': [],
                     'threshold': self.detection_threshold
                 })
-            
+        
         # Register the blueprint
-        self.rhapi.ui.blueprint_add(bp)  
+        self.rhapi.ui.blueprint_add(bp)
 
             
     def start_lidar(self, args=None):
@@ -175,13 +184,6 @@ class LidarValidator:
                 
                 # Store the latest scan data
                 self.last_scan_data = scan_data
-                
-                # Broadcast scan data to visualization clients
-                asyncio.run(self.broadcast_scan({
-                    'type': 'lidar_scan',
-                    'scan': scan_data,
-                    'threshold': self.detection_threshold / 10  # Convert to cm
-                }))
                 
                 gevent.idle()  # Allow other operations to proceed
                 
