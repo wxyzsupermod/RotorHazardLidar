@@ -190,9 +190,8 @@ class LidarValidator:
     def open_visualization(self, args=None):
         """Open the LIDAR visualization."""
         try:
-            self.rhapi.ui.message_notify('Opening LIDAR visualization...')
-            # Use a direct redirect response
-            return {'redirect': '/lidar'}
+            # Return a direct URL that the frontend will navigate to
+            return {'url': '/lidar'}
         except Exception as e:
             self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
             return False

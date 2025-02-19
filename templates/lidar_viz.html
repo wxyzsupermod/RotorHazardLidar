@@ -2,11 +2,6 @@
 <html>
 <head>
     <title>LIDAR Visualization</title>
-    <!-- Load React dependencies -->
-    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
-    <!-- Add Babel for JSX support -->
-    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     <style>
         body { 
             margin: 0; 
@@ -14,34 +9,9 @@
             background: #f5f5f5; 
             font-family: Arial, sans-serif;
         }
-        .lidar-container { 
-            max-width: 800px; 
-            margin: 0 auto; 
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
     </style>
 </head>
 <body>
-    <!-- Add a loading message -->
     <div id="root">Loading LIDAR visualization...</div>
-
-    <!-- Updated static path to match the blueprint configuration -->
-    <script type="text/babel" src="/static/RotorHazardLidar/lidar-viz.js"></script>
-
-    <!-- Add error handling -->
-    <script>
-        window.onerror = function(msg, url, lineNo, columnNo, error) {
-            console.error('Error: ' + msg + '\nURL: ' + url + '\nLine: ' + lineNo);
-            document.getElementById('root').innerHTML = 
-                `<div style="color: red;">
-                    Error loading visualization: ${msg}<br>
-                    Check browser console for details.
-                </div>`;
-            return false;
-        };
-    </script>
 </body>
 </html>
