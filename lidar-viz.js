@@ -7,19 +7,32 @@ const LidarVisualization = () => {
   const canvasRef = useRef(null);
   
   useEffect(() => {
-    // Setup WebSocket connection
-    const socket = new WebSocket(`ws://${window.location.host}/socket`);
+    // Use existing socket if in visualization window, or create new if in main UI
+    const socket = window.socket || new WebSocket(`ws://${window.location.host}/socket`);
     
-    socket.onmessage = (event) => {
+    const messageHandler = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === 'lidar_scan') {
-        setScanData(data.scan);
-        setThreshold(data.threshold);
+      
+      if (data.type === 'custom_message' && data.content.type === 'open_lidar_viz') {
+        // Only handle in main window
+        if (!window.socket) {
+          window.open(data.content.content.url, 'lidar_visualization', 'width=800,height=800');
+        }
+      }
+      else if (data.type === 'lidar_scan') {
+        setScanData(data.scan || []);
+        setThreshold(data.threshold || 100);
       }
     };
+
+    socket.addEventListener('message', messageHandler);
     
+    // Don't close the socket if it's the shared window.socket
     return () => {
-      socket.close();
+      socket.removeEventListener('message', messageHandler);
+      if (!window.socket) {
+        socket.close();
+      }
     };
   }, []);
   

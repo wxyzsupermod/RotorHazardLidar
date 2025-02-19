@@ -12,17 +12,32 @@ class LidarValidator:
         self.rhapi = rhapi
         
         # Register the visualization page
-        from flask import Blueprint, render_template
+        from flask import Blueprint
         
         bp = Blueprint(
             'lidar_viz',
-            __name__,
-            template_folder='templates'
+            __name__
         )
         
         @bp.route('/lidar')
         def lidar_view():
-            return render_template('lidar_viz.html')
+            return '''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>LIDAR Visualization</title>
+            </head>
+            <body>
+                <div id="root"></div>
+                <script>
+                    window.socket = new WebSocket(`ws://${window.location.host}/socket`);
+                </script>
+            </body>
+            </html>
+            '''
+            
+        # Register the blueprint
+        self.rhapi.ui.blueprint_add(bp)
         self.lidar = None
         self.detection_threshold = None
         self.last_detection_time = None
