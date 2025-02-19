@@ -7,7 +7,6 @@ from RHUI import UIField, UIFieldType
 from Database import ProgramMethod
 import gevent
 import asyncio
-import websockets
 import threading
 from gevent import monkey; monkey.patch_all()
 
@@ -105,40 +104,8 @@ class LidarValidator:
                 })
             
         # Register the blueprint
-        self.rhapi.ui.blueprint_add(bp)
-        
-        # Start WebSocket server
-        self.start_websocket_server()
-        
-    def start_websocket_server(self):
-        """Start WebSocket server in a separate thread."""
-        async def handler(websocket, path):
-            self.connected_clients.add(websocket)
-            try:
-                await websocket.wait_closed()
-            finally:
-                self.connected_clients.remove(websocket)
+        self.rhapi.ui.blueprint_add(bp)  
 
-        async def run_server():
-            port = int(self.rhapi.db.option('websocket_port'))
-            self.websocket_server = await websockets.serve(handler, '0.0.0.0', port)
-            await self.websocket_server.wait_closed()
-
-        def run_asyncio_loop():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(run_server())
-            loop.run_forever()
-
-        thread = threading.Thread(target=run_asyncio_loop, daemon=True)
-        thread.start()
-        
-    async def broadcast_scan(self, data):
-        """Broadcast scan data to all connected clients."""
-        if not self.connected_clients:
-            return
-        message = json.dumps(data)
-        websockets.broadcast(self.connected_clients, message)
             
     def start_lidar(self, args=None):
         """Start the LIDAR scanning process."""
