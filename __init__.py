@@ -190,16 +190,11 @@ class LidarValidator:
             self.stop_lidar()
             
     def open_visualization(self, args=None):
-        """Open the LIDAR visualization in a new window."""
+        """Open the LIDAR visualization."""
         try:
-            import webbrowser
-            # Get the server URL from rhapi
-            server_url = self.rhapi.ui.get_server_url()
-            # Construct the full URL
-            viz_url = f"{server_url}/lidar"
-            # Open in new browser window
-            webbrowser.open(viz_url, new=2)
             self.rhapi.ui.message_notify('Opening LIDAR visualization...')
+            # Simply return the relative URL - the UI system will handle it
+            return {'url': '/lidar'}
         except Exception as e:
             self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
     
