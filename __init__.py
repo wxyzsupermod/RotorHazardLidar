@@ -131,6 +131,7 @@ class LidarValidator:
         except Exception as e:
             self.rhapi.ui.message_alert(f'Failed to start LIDAR: {str(e)}')
             
+   
     def stop_lidar(self, args=None):
         """Stop the LIDAR scanning process."""
         if not self.is_running:
@@ -143,6 +144,7 @@ class LidarValidator:
             
         if self.lidar:
             self.lidar.stop()
+            self.lidar.stop_motor()  # Explicitly stop motor
             self.lidar.disconnect()
             self.lidar = None
             
@@ -151,40 +153,50 @@ class LidarValidator:
     def scan_loop(self):
         """Main LIDAR scanning loop."""
         try:
-            for scan in self.lidar.iter_scans():
-                if not self.is_running:
-                    break
+            # Start motor and scanning
+            self.lidar.motor_on()  # Explicitly turn on motor
+            self.lidar.start_scanning()  # Start scanning mode
+            
+            while self.is_running:
+                try:
+                    # Get a single complete scan
+                    scan = next(self.lidar.iter_scans())
                     
-                # Convert scan data to simplified format for visualization
-                scan_data = []
-                for _, angle, distance in scan:
-                    # Convert to cartesian coordinates for easier visualization
-                    # Scale distance down to fit visualization (divide by 10 to convert mm to cm)
-                    distance = distance / 10
-                    x = distance * math.cos(math.radians(angle))
-                    y = distance * math.sin(math.radians(angle))
-                    scan_data.append({
-                        'angle': angle,
-                        'distance': distance,
-                        'x': x,
-                        'y': y
-                    })
+                    # Convert scan data to simplified format for visualization
+                    scan_data = []
+                    for _, angle, distance in scan:
+                        # Convert to cartesian coordinates for easier visualization
+                        # Scale distance down to fit visualization (divide by 10 to convert mm to cm)
+                        distance = distance / 10
+                        x = distance * math.cos(math.radians(angle))
+                        y = distance * math.sin(math.radians(angle))
+                        scan_data.append({
+                            'angle': angle,
+                            'distance': distance,
+                            'x': x,
+                            'y': y
+                        })
+                        
+                        # Check for detections in the gate area
+                        if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
+                            self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
+                                gevent.time.monotonic()
+                            )
                     
-                    # Check for detections in the gate area
-                    if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
-                        self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
-                            gevent.time.monotonic()
-                        )
-                
-                # Store the latest scan data
-                self.last_scan_data = scan_data
-                
-                gevent.idle()  # Allow other operations to proceed
-                
+                    # Store the latest scan data
+                    self.last_scan_data = scan_data
+                    
+                    gevent.idle()  # Allow other operations to proceed
+                    
+                except StopIteration:
+                    # If we get a StopIteration, restart scanning
+                    self.lidar.stop()
+                    self.lidar.start_scanning()
+                    gevent.sleep(0.1)  # Short delay before restart
+                    
         except Exception as e:
             self.rhapi.ui.message_alert(f'LIDAR scanning error: {str(e)}')
-            self.stop_lidar()
-            
+            self.stop_lidar()            
 
     def open_visualization(self, args=None):
         """Open the LIDAR visualization."""
