@@ -25,7 +25,7 @@ const LidarVisualization = () => {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 100); // Update every 100ms
+    const interval = setInterval(fetchData, 300); // Update every 100ms
     return () => clearInterval(interval);
   }, []);
 

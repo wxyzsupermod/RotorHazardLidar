@@ -19,6 +19,8 @@ class LidarValidator:
         self.detection_window = 0.5  # Time window in seconds to match detections
         self.is_running = False
         self.scanning_greenlet = None
+        self.last_scan_data = []  # Initialize empty list for scan data
+        self.scan_lock = threading.Lock()  # Add a lock for thread-safe data access
         
         # Register port option
         port_field = UIField('lidar_port', 'LIDAR Port', UIFieldType.TEXT, 
@@ -85,6 +87,7 @@ class LidarValidator:
                 self.rhapi.ui.message_alert(f'Error loading template: {str(e)}')
                 return f'Error: {str(e)}'
             
+       
         @bp.route('/lidar/data')
         def lidar_data():
             """Serve LIDAR scan data as JSON."""
@@ -95,17 +98,12 @@ class LidarValidator:
                     'threshold': self.detection_threshold or 1000
                 })
             
-            if hasattr(self, 'last_scan_data'):
+            with self.scan_lock:  # Protect data access with lock
                 return jsonify({
                     'scan': self.last_scan_data,
                     'threshold': self.detection_threshold
                 })
-            else:
-                return jsonify({
-                    'scan': [],
-                    'threshold': self.detection_threshold
-                })
-        
+                
         # Register the blueprint
         self.rhapi.ui.blueprint_add(bp)
 
@@ -152,59 +150,39 @@ class LidarValidator:
         """Main LIDAR scanning loop."""
         try:
             while self.is_running:
-                try:
-                    # Get an iterator for the scans
-                    scan_iterator = self.lidar.iter_scans()
-                    
-                    while self.is_running:
-                        try:
-                            # Get a single complete scan
-                            scan = next(scan_iterator)
-                            
-                            # Convert scan data to simplified format for visualization
-                            scan_data = []
-                            for _, angle, distance in scan:
-                                # Convert to cartesian coordinates for easier visualization
-                                # Scale distance down to fit visualization (divide by 10 to convert mm to cm)
-                                distance = distance / 10
-                                x = distance * math.cos(math.radians(angle))
-                                y = distance * math.sin(math.radians(angle))
-                                scan_data.append({
-                                    'angle': angle,
-                                    'distance': distance,
-                                    'x': x,
-                                    'y': y
-                                })
-                                
-                                # Check for detections in the gate area
-                                if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
-                                    self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
-                                        gevent.time.monotonic()
-                                    )
-                            
-                            # Store the latest scan data
-                            self.last_scan_data = scan_data
-                            
-                            gevent.idle()  # Allow other operations to proceed
-                            
-                        except StopIteration:
-                            # If we get a StopIteration, break inner loop to restart scanner
-                            break
-                            
+                for scan in self.lidar.iter_scans():
                     if not self.is_running:
                         break
                         
-                    # If we're here, we got a StopIteration, so restart the scanner
-                    self.lidar.stop()
-                    gevent.sleep(0.1)  # Short delay before restart
+                    # Convert scan data to simplified format for visualization
+                    with self.scan_lock:  # Protect data access with lock
+                        scan_data = []
+                        for _, angle, distance in scan:
+                            # Convert to cartesian coordinates for easier visualization
+                            # Scale distance down to fit visualization (divide by 10 to convert mm to cm)
+                            distance = distance / 10
+                            x = distance * math.cos(math.radians(angle))
+                            y = distance * math.sin(math.radians(angle))
+                            scan_data.append({
+                                'angle': angle,
+                                'distance': distance,
+                                'x': x,
+                                'y': y
+                            })
+                            
+                            # Check for detections in the gate area
+                            if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
+                                self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
+                                    gevent.time.monotonic()
+                                )
+                        
+                        self.last_scan_data = scan_data
                     
-                except Exception as e:
-                    self.rhapi.ui.message_alert(f'LIDAR scan iteration error: {str(e)}')
-                    gevent.sleep(1)  # Delay before retry
+                    gevent.idle()  # Allow other operations to proceed
                     
         except Exception as e:
             self.rhapi.ui.message_alert(f'LIDAR scanning error: {str(e)}')
-            self.stop_lidar()            
+            self.stop_lidar()
 
     def open_visualization(self, args=None):
         """Open the LIDAR visualization."""
