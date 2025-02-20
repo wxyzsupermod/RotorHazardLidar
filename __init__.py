@@ -225,38 +225,73 @@ class LidarValidator:
         self.last_detection_time = None
         
     def calibrate(self, args=None):
-        """Run a calibration sequence."""
+        """Run a calibration sequence by averaging distances in the gate area over 5 seconds."""
         if not self.is_running:
-            self.rhapi.ui.message_alert('Start LIDAR before calibrating')
-            return
+            self.start_lidar
             
         self.rhapi.ui.message_notify('Move drone through gate for calibration...')
         
         # Collect measurements for 5 seconds
         distances = []
         start_time = gevent.time.monotonic()
+        calibration_duration = 5  # seconds
         
-        while gevent.time.monotonic() - start_time < 5:
-            for scan in self.lidar.iter_scans():
-                for _, angle, distance in scan:
-                    if angle < 10 or angle > 350:
-                        distances.append(distance)
-                        
-            gevent.idle()
+        try:
+            # Create a new scan iterator for calibration
+            self.lidar.stop()
+            gevent.sleep(0.1)  # Brief pause before restarting
             
-        if distances:
-            # Set threshold to minimum distance + 20%
-            min_distance = min(distances)
-            self.detection_threshold = int(min_distance * 1.2)
+            # Start collecting measurements
+            scan_iterator = self.lidar.iter_scans()
+            while gevent.time.monotonic() - start_time < calibration_duration:
+                try:
+                    scan = next(scan_iterator)
+                    for _, angle, distance in scan:
+                        # Only collect distances in the gate area (angles < 10° or > 350°)
+                        if angle < 10 or angle > 350:
+                            distances.append(distance)
+                    gevent.idle()
+                except StopIteration:
+                    # Handle scan iteration ending gracefully
+                    scan_iterator = self.lidar.iter_scans()
+                    continue
+                except rplidar.RPLidarException as e:
+                    # Handle LIDAR exceptions by restarting the scan
+                    self.rhapi.ui.message_notify(f'Calibration scan error: {str(e)}, retrying...')
+                    self.lidar.stop()
+                    gevent.sleep(0.1)
+                    scan_iterator = self.lidar.iter_scans()
+                    continue
+                    
+            if distances:
+                # Calculate average distance
+                avg_distance = sum(distances) / len(distances)
+                
+                # Set threshold to average distance + 20% buffer
+                self.detection_threshold = int(avg_distance * 1.2)
+                
+                # Save to options
+                self.rhapi.db.option_set('detection_distance', str(self.detection_threshold))
+                
+                self.rhapi.ui.message_notify(
+                    f'Calibration complete. Average distance: {int(avg_distance)}mm, ' + 
+                    f'Detection threshold: {self.detection_threshold}mm'
+                )
+            else:
+                self.rhapi.ui.message_alert('Calibration failed - no measurements received')
+                
+        except Exception as e:
+            self.rhapi.ui.message_alert(f'Calibration error: {str(e)}')
             
-            # Save to options
-            self.rhapi.db.option_set('detection_distance', str(self.detection_threshold))
-            
-            self.rhapi.ui.message_notify(
-                f'Calibration complete. Detection threshold: {self.detection_threshold}mm'
-            )
-        else:
-            self.rhapi.ui.message_alert('Calibration failed - no measurements received')
+        finally:
+            # Ensure we restart the continuous scanning
+            try:
+                if self.is_running:
+                    self.lidar.stop()
+                    gevent.sleep(0.1)
+                    self.scanning_greenlet = gevent.spawn(self.scan_loop)
+            except Exception as e:
+                self.rhapi.ui.message_alert(f'Error restarting scan after calibration: {str(e)}')
 
 def initialize(rhapi):
     """Initialize the plugin."""
