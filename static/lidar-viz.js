@@ -1,3 +1,6 @@
+// Destructure React hooks from React
+const { useState, useEffect, useRef } = React;
+
 // LIDAR Visualization Component
 const LidarVisualization = () => {
   const [scanData, setScanData] = useState([]);
@@ -26,7 +29,7 @@ const LidarVisualization = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const canvasRef = React.useRef(null);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
