@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
+// LIDAR Visualization Component
 const LidarVisualization = () => {
   const [scanData, setScanData] = useState([]);
   const [threshold, setThreshold] = useState(1000);
@@ -89,26 +87,38 @@ const LidarVisualization = () => {
   }, [scanData, threshold]);
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle>LIDAR Visualization</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {error ? (
-          <div className="text-red-500">{error}</div>
-        ) : (
-          <div className="relative">
-            <canvas 
-              ref={canvasRef} 
-              width={800} 
-              height={800} 
-              className="w-full h-full border rounded-lg"
-            />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="lidar-container">
+      <h2>LIDAR Visualization</h2>
+      {error ? (
+        <div style={{ color: 'red' }}>{error}</div>
+      ) : (
+        <div>
+          <canvas 
+            ref={canvasRef} 
+            width={800} 
+            height={800} 
+            style={{ width: '100%', height: '100%', border: '1px solid #ddd', borderRadius: '8px' }}
+          />
+        </div>
+      )}
+    </div>
   );
 };
 
-export default LidarVisualization;
+// Initialize React
+try {
+  console.log('Initializing React component...');
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+      throw new Error('Root element not found!');
+  }
+  ReactDOM.render(<LidarVisualization />, rootElement);
+  console.log('React component initialized');
+} catch (err) {
+  console.error('Failed to initialize React:', err);
+  document.getElementById('root').innerHTML = 
+      `<div style="color: red;">
+          Failed to initialize visualization: ${err.message}<br>
+          Check browser console for details.
+      </div>`;
+}

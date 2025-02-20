@@ -72,7 +72,7 @@ class LidarValidator:
             __name__,
             template_folder=os.path.join(plugin_dir, 'templates'),
             static_folder=os.path.join(plugin_dir, 'static'),
-            static_url_path='/static/RotorHazardLidar'  # Match your plugin folder name
+            static_url_path='/static/lidar-viz' 
         )
         
         @bp.route('/lidar')
