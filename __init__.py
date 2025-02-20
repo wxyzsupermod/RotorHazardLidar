@@ -150,43 +150,57 @@ class LidarValidator:
         
     def scan_loop(self):
         """Main LIDAR scanning loop."""
-        try: 
+        try:
             while self.is_running:
                 try:
-                    # Get a single complete scan
-                    scan = next(self.lidar.iter_scans())
+                    # Get an iterator for the scans
+                    scan_iterator = self.lidar.iter_scans()
                     
-                    # Convert scan data to simplified format for visualization
-                    scan_data = []
-                    for _, angle, distance in scan:
-                        # Convert to cartesian coordinates for easier visualization
-                        # Scale distance down to fit visualization (divide by 10 to convert mm to cm)
-                        distance = distance / 10
-                        x = distance * math.cos(math.radians(angle))
-                        y = distance * math.sin(math.radians(angle))
-                        scan_data.append({
-                            'angle': angle,
-                            'distance': distance,
-                            'x': x,
-                            'y': y
-                        })
+                    while self.is_running:
+                        try:
+                            # Get a single complete scan
+                            scan = next(scan_iterator)
+                            
+                            # Convert scan data to simplified format for visualization
+                            scan_data = []
+                            for _, angle, distance in scan:
+                                # Convert to cartesian coordinates for easier visualization
+                                # Scale distance down to fit visualization (divide by 10 to convert mm to cm)
+                                distance = distance / 10
+                                x = distance * math.cos(math.radians(angle))
+                                y = distance * math.sin(math.radians(angle))
+                                scan_data.append({
+                                    'angle': angle,
+                                    'distance': distance,
+                                    'x': x,
+                                    'y': y
+                                })
+                                
+                                # Check for detections in the gate area
+                                if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
+                                    self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
+                                        gevent.time.monotonic()
+                                    )
+                            
+                            # Store the latest scan data
+                            self.last_scan_data = scan_data
+                            
+                            gevent.idle()  # Allow other operations to proceed
+                            
+                        except StopIteration:
+                            # If we get a StopIteration, break inner loop to restart scanner
+                            break
+                            
+                    if not self.is_running:
+                        break
                         
-                        # Check for detections in the gate area
-                        if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
-                            self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
-                                gevent.time.monotonic()
-                            )
-                    
-                    # Store the latest scan data
-                    self.last_scan_data = scan_data
-                    
-                    gevent.idle()  # Allow other operations to proceed
-                    
-                except StopIteration:
-                    # If we get a StopIteration, restart scanning
+                    # If we're here, we got a StopIteration, so restart the scanner
                     self.lidar.stop()
-                    self.lidar.start_scanning()
                     gevent.sleep(0.1)  # Short delay before restart
+                    
+                except Exception as e:
+                    self.rhapi.ui.message_alert(f'LIDAR scan iteration error: {str(e)}')
+                    gevent.sleep(1)  # Delay before retry
                     
         except Exception as e:
             self.rhapi.ui.message_alert(f'LIDAR scanning error: {str(e)}')
