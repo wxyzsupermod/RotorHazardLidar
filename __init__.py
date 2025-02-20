@@ -131,7 +131,6 @@ class LidarValidator:
         except Exception as e:
             self.rhapi.ui.message_alert(f'Failed to start LIDAR: {str(e)}')
             
-   
     def stop_lidar(self, args=None):
         """Stop the LIDAR scanning process."""
         if not self.is_running:
@@ -144,7 +143,6 @@ class LidarValidator:
             
         if self.lidar:
             self.lidar.stop()
-            self.lidar.stop_motor()  # Explicitly stop motor
             self.lidar.disconnect()
             self.lidar = None
             
@@ -152,11 +150,7 @@ class LidarValidator:
         
     def scan_loop(self):
         """Main LIDAR scanning loop."""
-        try:
-            # Start motor and scanning
-            self.lidar.motor_on()  # Explicitly turn on motor
-            self.lidar.start_scanning()  # Start scanning mode
-            
+        try: 
             while self.is_running:
                 try:
                     # Get a single complete scan
