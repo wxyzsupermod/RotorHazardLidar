@@ -199,7 +199,9 @@ class LidarValidator:
         """Handler for lap recording events."""
         if not self.is_running or not self.last_detection_time:
             return
-            
+        
+        self.rhapi.ui.message_alert(f"on_lap_recorded args: {args}")
+        
         lap_time = args.get('lap_timestamp', 0)
         
         # Compare timestamps
