@@ -54,58 +54,57 @@ class LidarValidator:
                                          'Stop LIDAR', self.stop_lidar)
         self.rhapi.ui.register_quickbutton('lidar_control', 'calibrate_lidar',
                                          'Calibrate', self.calibrate)
-        self.rhapi.ui.register_quickbutton('lidar_control', 'view_lidar',
-                                         'View LIDAR', self.open_visualization)
         
         # Register event handlers
         self.rhapi.events.on(Evt.RACE_LAP_RECORDED, self.on_lap_recorded)
         self.rhapi.events.on(Evt.RACE_STOP, self.on_race_stop)
+        self.rhapi.evnets.on(Evt.RACE_START, self.on_race_start)
         
-        # Register the visualization page and API endpoint
-        from flask import Blueprint, jsonify, render_template
-        import os
+        # # Register the visualization page and API endpoint
+        # from flask import Blueprint, jsonify, render_template
+        # import os
 
-        # Get the directory where this plugin file is located
-        plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        # # Get the directory where this plugin file is located
+        # plugin_dir = os.path.dirname(os.path.abspath(__file__))
         
-        # Create blueprint with absolute paths
-        bp = Blueprint(
-            'lidar_viz',
-            __name__,
-            template_folder=os.path.join(plugin_dir, 'templates'),
-            static_folder=os.path.join(plugin_dir, 'static'),
-            static_url_path='/static/lidar-viz' 
-        )
+        # # # Create blueprint with absolute paths
+        # # bp = Blueprint(
+        # #     'lidar_viz',
+        # #     __name__,
+        #     template_folder=os.path.join(plugin_dir, 'templates'),
+        #     static_folder=os.path.join(plugin_dir, 'static'),
+        #     static_url_path='/static/lidar-viz' 
+        # )
         
-        @bp.route('/lidar')
-        def lidar_view():
-            """Serve the LIDAR visualization page."""
-            try:
-                self.rhapi.ui.message_notify('Lidar view endpoint accessed')
-                return render_template('lidar_viz.html')
-            except Exception as e:
-                self.rhapi.ui.message_alert(f'Error loading template: {str(e)}')
-                return f'Error: {str(e)}'
+        # @bp.route('/lidar')
+        # def lidar_view():
+        #     """Serve the LIDAR visualization page."""
+        #     try:
+        #         self.rhapi.ui.message_notify('Lidar view endpoint accessed')
+        #         return render_template('lidar_viz.html')
+        #     except Exception as e:
+        #         self.rhapi.ui.message_alert(f'Error loading template: {str(e)}')
+        #         return f'Error: {str(e)}'
             
        
-        @bp.route('/lidar/data')
-        def lidar_data():
-            """Serve LIDAR scan data as JSON."""
-            if not self.is_running:
-                return jsonify({
-                    'error': 'LIDAR not running',
-                    'scan': [],
-                    'threshold': self.detection_threshold or 1000
-                })
+        # @bp.route('/lidar/data')
+        # def lidar_data():
+        #     """Serve LIDAR scan data as JSON."""
+        #     if not self.is_running:
+        #         return jsonify({
+        #             'error': 'LIDAR not running',
+        #             'scan': [],
+        #             'threshold': self.detection_threshold or 1000
+        #         })
             
-            with self.scan_lock:  # Protect data access with lock
-                return jsonify({
-                    'scan': self.last_scan_data,
-                    'threshold': self.detection_threshold
-                })
+        #     with self.scan_lock:  # Protect data access with lock
+        #         return jsonify({
+        #             'scan': self.last_scan_data,
+        #             'threshold': self.detection_threshold
+        #         })
                 
-        # Register the blueprint
-        self.rhapi.ui.blueprint_add(bp)
+        # # Register the blueprint
+        # self.rhapi.ui.blueprint_add(bp)
 
             
     def start_lidar(self, args=None):
@@ -172,6 +171,7 @@ class LidarValidator:
                             
                             # Check for detections in the gate area
                             if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
+                                self.rhapi.ui.message_alert('Lidar Saw Crossing')
                                 self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
                                     gevent.time.monotonic()
                                 )
@@ -184,14 +184,14 @@ class LidarValidator:
             self.rhapi.ui.message_alert(f'LIDAR scanning error: {str(e)}')
             self.stop_lidar()
 
-    def open_visualization(self, args=None):
-        """Open the LIDAR visualization."""
-        try:
-            # Return JavaScript that will be executed on the client side
-            return {'script': 'window.open("/lidar", "_blank")'}
-        except Exception as e:
-            self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
-            return False
+    # def open_visualization(self, args=None):
+    #     """Open the LIDAR visualization."""
+    #     try:
+    #         # Return JavaScript that will be executed on the client side
+    #         return {'script': 'window.open("/lidar", "_blank")'}
+    #     except Exception as e:
+    #         self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
+    #         return False
     
     def on_lap_recorded(self, args):
         """Handler for lap recording events."""
@@ -223,6 +223,10 @@ class LidarValidator:
         """Handler for race stop events."""
         # Clear the last detection time when race stops
         self.last_detection_time = None
+        self.stop_lidar
+
+    def on_race_start(self, args):
+        self.start_lidar
         
     def calibrate(self, args=None):
         """Run a calibration sequence by averaging distances in the gate area over 5 seconds."""
