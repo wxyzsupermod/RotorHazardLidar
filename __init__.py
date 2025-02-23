@@ -214,15 +214,9 @@ class LidarValidator:
             # Get the pilot_id and lap_number from the args
             pilot_id = args.get('pilot_id')
             lap_number = args.get('lap').lap_number if args.get('lap') else None
-
-            if pilot_id is not None and lap_number is not None:
-                # Find the lap in race.laps_raw and mark it as deleted
-                raw_laps = self.rhapi.race.laps_raw()
-                self.rhapi.ui.message_notify(raw_laps)
-                # for lap in raw_laps:
-                #     if lap['pilot_id'] == pilot_id and lap['lap_number'] == lap_number:
-                #         lap['deleted'] = True
-                #         break
+            args.get('lap').invalid = True
+            args.get('lap').deleted = True
+            
     
     def on_race_stop(self, args):
         """Handler for race stop events."""
