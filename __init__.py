@@ -221,7 +221,7 @@ class LidarValidator:
     def on_race_stop(self, args):
         """Handler for race stop events."""
         # Clear the last detection time when race stops
-        self.stop_lidar
+        self.stop_lidar()
     
     def on_race_start(self, args):
         """Handler for race start events."""
@@ -258,13 +258,6 @@ class LidarValidator:
                     gevent.idle()
                 except StopIteration:
                     # Handle scan iteration ending gracefully
-                    scan_iterator = self.lidar.iter_scans()
-                    continue
-                except rplidar.RPLidarException as e:
-                    # Handle LIDAR exceptions by restarting the scan
-                    self.rhapi.ui.message_notify(f'Calibration scan error: {str(e)}, retrying...')
-                    self.lidar.stop()
-                    gevent.sleep(0.1)
                     scan_iterator = self.lidar.iter_scans()
                     continue
                     

@@ -10,7 +10,8 @@ const LidarVisualization = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const data = await fetch('/lidar/data').json();
+        const response = await fetch('/lidar/data');
+        const data = await response.json();
         
         if (data.error) {
           setError(data.error);
@@ -24,7 +25,7 @@ const LidarVisualization = () => {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 1000); // Update every 100ms
+    const interval = setInterval(fetchData, 300); // Update every 100ms
     return () => clearInterval(interval);
   }, []);
 
