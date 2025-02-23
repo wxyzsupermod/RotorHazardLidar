@@ -174,6 +174,7 @@ class LidarValidator:
                             
                             # Check for detections in the gate area
                             if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
+                                self.rhapi.ui.message_notify('Lidar detected a thing')
                                 self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
                                     gevent.time.monotonic()
                                 )
