@@ -224,10 +224,12 @@ class LidarValidator:
     def on_race_stop(self, args):
         """Handler for race stop events."""
         # Clear the last detection time when race stops
-        self.last_detection_time = None
+        self.stop_lidar
     
     def on_race_start(self, args):
         """Handler for race start events."""
+        self.rhapi.ui.message_notify("Starting Lidar")
+        self.stop_lidar
         self.start_lidar
 
     def calibrate(self, args=None):
