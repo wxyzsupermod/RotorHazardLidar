@@ -229,13 +229,13 @@ class LidarValidator:
     def on_race_start(self, args):
         """Handler for race start events."""
         self.rhapi.ui.message_notify("Starting Lidar")
-        self.stop_lidar
-        self.start_lidar
+        self.stop_lidar()
+        self.start_lidar()
 
     def calibrate(self, args=None):
         """Run a calibration sequence by averaging distances in the gate area over 5 seconds."""
         if not self.is_running:
-            self.start_lidar
+            self.start_lidar()
             
         self.rhapi.ui.message_notify('Move drone through gate for calibration...')
         
