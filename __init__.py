@@ -212,14 +212,12 @@ class LidarValidator:
             )
             
             # Mark the lap as deleted
-            if 'lap_id' in args:
-                race_id = self.rhapi.race.race_id
-                if race_id:
-                    laps = self.rhapi.db.laps_by_race(race_id)
-                    for lap in laps:
-                        if lap.id == args['lap_id']:
-                            lap.deleted = True
-                            break
+        if 'lap_id' in args:
+            lap_id_to_delete = args['lap_id']
+            for lap in self.rhapi.race.laps_raw:
+                if lap['id'] == lap_id_to_delete:
+                    lap['deleted'] = True
+                    break
     
     def on_race_stop(self, args):
         """Handler for race stop events."""
