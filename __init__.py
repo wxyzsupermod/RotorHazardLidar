@@ -199,27 +199,28 @@ class LidarValidator:
         """Handler for lap recording events."""
         if not self.is_running or not self.last_detection_time:
             return
-        
-        self.rhapi.ui.message_alert(f"on_lap_recorded args: {args}")
-        
-        lap_time = args.get('lap_timestamp', 0)
-        
+
+        lap_time = args.get('lap').lap_time_stamp if args.get('lap') else 0
+
         # Compare timestamps
         time_diff = abs(lap_time - self.last_detection_time) / 1000.0  # Convert to seconds
-        
+
         if time_diff > self.detection_window:
             # Invalid lap - no LIDAR detection within window
             self.rhapi.ui.message_notify(
                 f'Warning: Lap recorded without LIDAR validation (diff: {time_diff:.2f}s)'
             )
-            
-            # Mark the lap as deleted
-        if 'lap_id' in args:
-            lap_id_to_delete = args['lap_id']
-            for lap in self.rhapi.race.laps_raw:
-                if lap['id'] == lap_id_to_delete:
-                    lap['deleted'] = True
-                    break
+
+            # Get the pilot_id and lap_number from the args
+            pilot_id = args.get('pilot_id')
+            lap_number = args.get('lap').lap_number if args.get('lap') else None
+
+            if pilot_id is not None and lap_number is not None:
+                # Find the lap in race.laps_raw and mark it as deleted
+                for lap in self.rhapi.race.laps_raw:
+                    if lap['pilot_id'] == pilot_id and lap['lap_number'] == lap_number:
+                        lap['deleted'] = True
+                        break
     
     def on_race_stop(self, args):
         """Handler for race stop events."""
