@@ -171,7 +171,7 @@ class LidarValidator:
                             
                             # Check for detections in the gate area
                             if (angle < 10 or angle > 350) and distance * 10 < self.detection_threshold:
-                                self.rhapi.ui.message_alert('Lidar Saw Crossing')
+                                self.rhapi.ui.message_notify('LIDAR scanning saw a thing')
                                 self.last_detection_time = self.rhapi.server.monotonic_to_epoch_millis(
                                     gevent.time.monotonic()
                                 )
@@ -183,15 +183,6 @@ class LidarValidator:
         except Exception as e:
             self.rhapi.ui.message_alert(f'LIDAR scanning error: {str(e)}')
             self.stop_lidar()
-
-    # def open_visualization(self, args=None):
-    #     """Open the LIDAR visualization."""
-    #     try:
-    #         # Return JavaScript that will be executed on the client side
-    #         return {'script': 'window.open("/lidar", "_blank")'}
-    #     except Exception as e:
-    #         self.rhapi.ui.message_alert(f'Failed to open visualization: {str(e)}')
-    #         return False
     
     def on_lap_recorded(self, args):
         """Handler for lap recording events."""
@@ -226,7 +217,8 @@ class LidarValidator:
         self.stop_lidar
 
     def on_race_start(self, args):
-        self.start_lidar
+        if not self.is_running:
+            self.start_lidar
         
     def calibrate(self, args=None):
         """Run a calibration sequence by averaging distances in the gate area over 5 seconds."""
