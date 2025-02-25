@@ -133,9 +133,6 @@ class LidarValidator:
             
     def stop_lidar(self, args=None):
         """Stop the LIDAR scanning process."""
-        if not self.is_running:
-            return
-            
         self.is_running = False
         if self.scanning_greenlet:
             self.scanning_greenlet.kill()
@@ -231,66 +228,73 @@ class LidarValidator:
         self.start_lidar()
 
     def calibrate(self, args=None):
-        """Run a calibration sequence by averaging distances in the gate area over 5 seconds."""
+        """
+        Calibrate the LIDAR by taking a 10-second average of distances in the gate area.
+        This sets the detection threshold based on actual measurements.
+        """
+        self.rhapi.ui.message_notify('Starting LIDAR calibration (10 seconds)...')
+        
+        # Make sure LIDAR is running
+        was_already_running = self.is_running
         if not self.is_running:
             self.start_lidar()
             
-        self.rhapi.ui.message_notify('Move drone through gate for calibration...')
+        # If we couldn't start the LIDAR, abort calibration
+        if not self.is_running:
+            self.rhapi.ui.message_alert('Calibration failed: Could not start LIDAR')
+            return
         
-        # Collect measurements for 5 seconds
-        distances = []
+        # Create data collection variables
+        gate_distances = []
         start_time = gevent.time.monotonic()
-        calibration_duration = 5  # seconds
+        calibration_duration = 10  # 10 seconds of data collection
         
         try:
-            # Create a new scan iterator for calibration
-            self.lidar.stop()
-            gevent.sleep(0.1)  # Brief pause before restarting
-            
-            # Start collecting measurements
-            scan_iterator = self.lidar.iter_scans()
+            # Collect data for 10 seconds
             while gevent.time.monotonic() - start_time < calibration_duration:
-                try:
-                    scan = next(scan_iterator)
-                    for _, angle, distance in scan:
-                        # Only collect distances in the gate area (angles < 10° or > 350°)
+                # Short sleep to prevent CPU overloading
+                gevent.sleep(0.1)
+                
+                # Get latest scan data with lock protection
+                with self.scan_lock:
+                    # Only collect data in the "gate area" (angles near 0/360 degrees)
+                    for point in self.last_scan_data:
+                        angle = point['angle']
+                        # Consider points within the gate area (adjust range as needed)
                         if angle < 10 or angle > 350:
-                            distances.append(distance)
-                    gevent.idle()
-                except StopIteration:
-                    # Handle scan iteration ending gracefully
-                    scan_iterator = self.lidar.iter_scans()
-                    continue
-                    
-            if distances:
-                # Calculate average distance
-                avg_distance = sum(distances) / len(distances)
+                            # Convert back to mm for threshold (data is stored in cm)
+                            gate_distances.append(point['distance'] * 10)
+            
+            # Calculate the average if we have data
+            if gate_distances:
+                # Calculate average and add a margin (e.g., 80% of the average)
+                avg_distance = sum(gate_distances) / len(gate_distances)
+                # Set threshold to 80% of the average distance
+                calibrated_threshold = int(avg_distance * 0.8)
                 
-                # Set threshold to average distance + 20% buffer
-                self.detection_threshold = int(avg_distance * 1.2)
+                 
+                # Update the detection threshold
+                self.detection_threshold = calibrated_threshold
                 
-                # Save to options
-                self.rhapi.db.option_set('detection_distance', str(self.detection_threshold))
+                # Update the option value in the database
+                self.rhapi.db.option_set('detection_distance', str(calibrated_threshold))
                 
+                            
+                # Notify user of successful calibration
                 self.rhapi.ui.message_notify(
-                    f'Calibration complete. Average distance: {int(avg_distance)}mm, ' + 
-                    f'Detection threshold: {self.detection_threshold}mm'
+                    f'Calibration complete: Detection threshold set to {calibrated_threshold}mm '
+                    f'(based on average of {len(gate_distances)} readings)'
                 )
             else:
-                self.rhapi.ui.message_alert('Calibration failed - no measurements received')
-                
+                self.rhapi.ui.message_alert('Calibration failed: No data collected in gate area')
+        
         except Exception as e:
             self.rhapi.ui.message_alert(f'Calibration error: {str(e)}')
-            
+        
         finally:
-            # Ensure we restart the continuous scanning
-            try:
-                if self.is_running:
-                    self.lidar.stop()
-                    gevent.sleep(0.1)
-                    self.scanning_greenlet = gevent.spawn(self.scan_loop)
-            except Exception as e:
-                self.rhapi.ui.message_alert(f'Error restarting scan after calibration: {str(e)}')
+            # Stop LIDAR if it wasn't running before
+            if not was_already_running:
+                self.stop_lidar()
 
 def initialize(rhapi):
     """Initialize the plugin."""
